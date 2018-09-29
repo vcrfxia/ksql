@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.avro.Schema;
+import org.apache.kafka.streams.StreamsConfig;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -39,15 +40,32 @@ public class SchemaTranslationTest {
 
   private final String name;
   private final Query query;
+  private final String optimizationsOn;
+  private final String optimizationsOff;
 
-  public SchemaTranslationTest(final String name, final Query query) {
+
+  /**
+   * @param name  - unused. Is just so the tests get named.
+   * @param query - query to run.
+   * @param optimizationsOff - turns off streams optimizations
+   * @param  optimizationsOn - turns on all streams optimizations
+   */
+  @SuppressWarnings("unused")
+  public SchemaTranslationTest(final String name, final Query query, final String optimizationsOn, final String optimizationsOff) {
     this.name = name;
     this.query = query;
+    this.optimizationsOn = optimizationsOn;
+    this.optimizationsOff = optimizationsOff;
   }
 
   @Test
-  public void shouldBuildAndExecuteQueries() {
-    EndToEndEngineTestUtil.shouldBuildAndExecuteQuery(this.query, "none");
+  public void shouldBuildAndExecuteQueriesOptimized() {
+    EndToEndEngineTestUtil.shouldBuildAndExecuteQuery(this.query, optimizationsOn);
+  }
+
+  @Test
+  public void shouldBuildAndExecuteQueriesNotOptimized() {
+    EndToEndEngineTestUtil.shouldBuildAndExecuteQuery(this.query, optimizationsOff);
   }
 
   @Parameterized.Parameters(name = "{0}")
@@ -67,7 +85,7 @@ public class SchemaTranslationTest {
       testParams.addAll(
           query
               .stream()
-              .map(q -> new Object[]{q.getName(), q})
+              .map(q -> new Object[]{q.getName(), q, StreamsConfig.OPTIMIZE, StreamsConfig.NO_OPTIMIZATION})
               .collect(Collectors.toList())
       );
     }
