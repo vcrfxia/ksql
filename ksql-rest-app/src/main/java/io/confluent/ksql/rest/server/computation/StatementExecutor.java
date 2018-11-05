@@ -384,10 +384,8 @@ public class StatementExecutor {
             queuedCommandStatus,
             new CommandStatus(CommandStatus.Status.TERMINATED, "Query terminated")
         );
-        ksqlEngine.terminateQuery(queryId, false);
         return false;
       } else if (wasDropped) {
-        ksqlEngine.terminateQuery(queryId, false);
         return false;
       } else {
         persistentQueryMd.start();

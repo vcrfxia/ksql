@@ -262,16 +262,12 @@ public class KsqlEngine implements Closeable {
 
     for (final QueryMetadata queryMetadata : runningQueries) {
       if (queryMetadata instanceof PersistentQueryMetadata) {
-        livePersistentQueries.add(queryMetadata);
         final PersistentQueryMetadata persistentQueryMd = (PersistentQueryMetadata) queryMetadata;
-        persistentQueries.put(persistentQueryMd.getQueryId(), persistentQueryMd);
         metaStore.updateForPersistentQuery(persistentQueryMd.getQueryId().getId(),
                                            persistentQueryMd.getSourceNames(),
                                            persistentQueryMd.getSinkNames());
       }
-      allLiveQueries.add(queryMetadata);
     }
-    engineMetrics.registerQueries(runningQueries);
     return runningQueries;
   }
 
@@ -515,13 +511,14 @@ public class KsqlEngine implements Closeable {
   }
 
   public boolean terminateQuery(final QueryId queryId, final boolean closeStreams) {
+    metaStore.removePersistentQuery(queryId.getId());
+
     final PersistentQueryMetadata persistentQueryMetadata = persistentQueries.remove(queryId);
     if (persistentQueryMetadata == null) {
       return false;
     }
     livePersistentQueries.remove(persistentQueryMetadata);
     allLiveQueries.remove(persistentQueryMetadata);
-    metaStore.removePersistentQuery(persistentQueryMetadata.getQueryId().getId());
     if (closeStreams) {
       persistentQueryMetadata.close();
       persistentQueryMetadata.cleanUpInternalTopicAvroSchemas(schemaRegistryClient);
@@ -552,6 +549,15 @@ public class KsqlEngine implements Closeable {
     return this.livePersistentQueries.size();
   }
 
+  public void addActiveQuery(final QueryMetadata queryMetadata) {
+    if (queryMetadata instanceof PersistentQueryMetadata) {
+      livePersistentQueries.add(queryMetadata);
+      final PersistentQueryMetadata persistentQueryMd = (PersistentQueryMetadata) queryMetadata;
+      persistentQueries.put(persistentQueryMd.getQueryId(), persistentQueryMd);
+    }
+    allLiveQueries.add(queryMetadata);
+    engineMetrics.registerQuery(queryMetadata);
+  }
 
   @Override
   public void close() {

@@ -506,13 +506,13 @@ public class KsqlResourceTest {
     final String ksqlString = "CREATE STREAM test_explain AS SELECT * FROM test_stream;";
     givenMockEngine(mockEngine -> {
       EasyMock.expect(mockEngine.parseStatements(EasyMock.anyString()))
-          .andReturn(realEngine.parseStatements(ksqlString));
+          .andDelegateTo(realEngine);
 
       EasyMock.expect(mockEngine.getQueryExecutionPlan(EasyMock.anyObject(), EasyMock.anyObject()))
           .andThrow(new RuntimeException("internal error"));
     });
 
-    // Then:
+    // When:
     final KsqlErrorMessage result = makeFailingRequest(
         ksqlString, Code.INTERNAL_SERVER_ERROR);
 
@@ -697,8 +697,8 @@ public class KsqlResourceTest {
 
   private void givenMockEngine(final Consumer<KsqlEngine> mockInitializer) {
     ksqlEngine = EasyMock.niceMock(KsqlEngine.class);
-    EasyMock.expect(ksqlEngine.getMetaStore()).andReturn(realEngine.getMetaStore()).anyTimes();
-    EasyMock.expect(ksqlEngine.getTopicClient()).andReturn(realEngine.getTopicClient()).anyTimes();
+    EasyMock.expect(ksqlEngine.getMetaStore()).andDelegateTo(realEngine).anyTimes();
+    EasyMock.expect(ksqlEngine.getTopicClient()).andDelegateTo(realEngine).anyTimes();
     mockInitializer.accept(ksqlEngine);
     EasyMock.replay(ksqlEngine);
     setUpKsqlResource();
@@ -707,10 +707,15 @@ public class KsqlResourceTest {
   private List<PersistentQueryMetadata> createQueries(
       final String sql,
       final Map<String, Object> overriddenProperties) {
-    return ksqlEngine.buildMultipleQueries(sql, ksqlConfig, overriddenProperties)
-        .stream()
-        .map(PersistentQueryMetadata.class::cast)
-        .collect(Collectors.toList());
+    final List<PersistentQueryMetadata> queryMetadataList =
+        ksqlEngine.buildMultipleQueries(sql, ksqlConfig, overriddenProperties)
+            .stream()
+            .map(PersistentQueryMetadata.class::cast)
+            .collect(Collectors.toList());
+    for (final QueryMetadata queryMetadata : queryMetadataList) {
+      queryMetadata.start();
+    }
+    return queryMetadataList;
   }
 
   @SuppressWarnings("SameParameterValue")

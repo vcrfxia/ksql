@@ -217,12 +217,7 @@ public class KsqlResource {
     }
 
     if (statement instanceof ShowColumns) {
-      final ShowColumns showColumns = (ShowColumns) statement;
-      if (showColumns.isTopic()) {
-        describeTopic(statementText, showColumns.getTable().getSuffix());
-      } else {
-        describe(showColumns.getTable().getSuffix(), showColumns.isExtended());
-      }
+      showColumns(statementText, (ShowColumns)statement);
     } else if (statement instanceof Explain) {
       explainQuery((Explain) statement, statementText);
     } else if (isExecutableDdlStatement(statement)
@@ -264,13 +259,7 @@ public class KsqlResource {
     } else if (statement instanceof ListQueries) {
       return showQueries(statementText, ((ListQueries)statement).getShowExtended());
     } else if (statement instanceof ShowColumns) {
-      final ShowColumns showColumns = (ShowColumns) statement;
-      if (showColumns.isTopic()) {
-        return describeTopic(statementText, showColumns.getTable().getSuffix());
-      }
-      return new SourceDescriptionEntity(
-          statementText,
-          describe(showColumns.getTable().getSuffix(), showColumns.isExtended()));
+      return showColumns(statementText, (ShowColumns)statement);
     } else if (statement instanceof ListProperties) {
       return listProperties(statementText, streamsProperties);
     } else if (statement instanceof Explain) {
@@ -329,7 +318,7 @@ public class KsqlResource {
     } catch (final Exception e) {
       throw new KsqlException(
           String.format(
-              "Could not write the statement '%s' into the command " + "topic.", statementText
+              "Could not write the statement '%s' into the command topic.", statementText
           ),
           e
       );
@@ -409,6 +398,15 @@ public class KsqlResource {
         schemaString
     );
     return topicDescription;
+  }
+
+  private KsqlEntity showColumns(final String statementText, final ShowColumns showColumns) {
+    if (showColumns.isTopic()) {
+      return describeTopic(statementText, showColumns.getTable().getSuffix());
+    }
+    return new SourceDescriptionEntity(
+        statementText,
+        describe(showColumns.getTable().getSuffix(), showColumns.isExtended()));
   }
 
   private SourceDescription describe(
