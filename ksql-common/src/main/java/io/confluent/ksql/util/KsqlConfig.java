@@ -137,7 +137,14 @@ public class KsqlConfig extends AbstractConfig implements Cloneable {
               true,
               false,
               ConfigDef.Importance.LOW,
-              KSQL_FUNCTIONS_SUBSTRING_LEGACY_ARGS_DOCS)
+              KSQL_FUNCTIONS_SUBSTRING_LEGACY_ARGS_DOCS),
+          new CompatibilityBreakingConfigDef(
+              "ksql.named.internal.topics",
+              ConfigDef.Type.STRING,
+              "off",
+              "on",
+              ConfigDef.Importance.LOW,
+              "")
   );
 
   private static class CompatibilityBreakingConfigDef {

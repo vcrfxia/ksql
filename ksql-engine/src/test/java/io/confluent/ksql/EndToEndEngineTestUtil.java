@@ -590,7 +590,7 @@ final class EndToEndEngineTestUtil {
     final ObjectWriter objectWriter = new ObjectMapper().writerWithDefaultPrettyPrinter();
 
     queryList.forEach(query -> {
-      final Map<String, Object> originalConfigs = getConfigs(null);
+      final Map<String, Object> originalConfigs = getConfigs(query.properties());
       final Map<String, Object> updatedConfigs = new HashMap<>(originalConfigs);
       // need to overwrite the bootstrap servers for generating file
       updatedConfigs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:" + randomPort.nextInt(4000));
@@ -600,6 +600,7 @@ final class EndToEndEngineTestUtil {
       final Topology topology = getStreamsTopology(query, ksqlEngine, ksqlConfig);
       final Map<String, String> configsToPersist = ksqlConfig.getAllConfigPropsWithSecretsObfuscated();
       writeExpectedTopologyFile(query.name, topology, configsToPersist, objectWriter, topologyDir);
+      ksqlEngine.close();
     });
   }
 
@@ -787,8 +788,7 @@ final class EndToEndEngineTestUtil {
         .put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0)
         .put(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getPath())
         .put(StreamsConfig.APPLICATION_ID_CONFIG, "some.ksql.service.id")
-        .put(KsqlConfig.KSQL_SERVICE_ID_CONFIG, "some.ksql.service.id")
-        .put(StreamsConfig.TOPOLOGY_OPTIMIZATION, "all");
+        .put(KsqlConfig.KSQL_SERVICE_ID_CONFIG, "some.ksql.service.id");
 
       if(additionalConfigs != null){
           mapBuilder.putAll(additionalConfigs);

@@ -15,6 +15,7 @@ import static io.confluent.ksql.EndToEndEngineTestUtil.loadExpectedTopologies;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.ksql.EndToEndEngineTestUtil.TestCase;
@@ -29,6 +30,7 @@ import io.confluent.ksql.parser.SqlBaseParser;
 import io.confluent.ksql.parser.tree.AbstractStreamCreateStatement;
 import io.confluent.ksql.parser.tree.Expression;
 import io.confluent.ksql.serde.DataSource;
+import io.confluent.ksql.util.KsqlConfig;
 import io.confluent.ksql.util.StringUtil;
 import io.confluent.ksql.util.TypeUtil;
 import java.io.IOException;
@@ -52,6 +54,7 @@ import java.util.stream.StreamSupport;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.streams.StreamsConfig;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -136,18 +139,18 @@ public class QueryTranslationTest {
         .flatMap(test -> {
           final JsonNode formatsNode = test.getNode().get("format");
           if (formatsNode == null) {
-            return Stream.of(createTest(test, ""));
+            return createTests(test, "");
           }
 
           final Spliterator<JsonNode> formats = Spliterators.spliteratorUnknownSize(
               formatsNode.iterator(), Spliterator.ORDERED);
 
           return StreamSupport.stream(formats, false)
-              .map(format -> createTest(test, format.asText()));
+              .flatMap(format -> createTests(test, format.asText()));
         });
   }
 
-  private static Query createTest(final TestCase test, final String format) {
+  private static Stream<Query> createTests(final TestCase test, final String format) {
     try {
       final JsonNode query = test.getNode();
       final StringBuilder nameBuilder = new StringBuilder();
@@ -213,10 +216,31 @@ public class QueryTranslationTest {
         }
       }
 
-      return new Query(test.getTestPath(), name, properties, topics, inputs, outputs, statements,
-          expectedException);
+      final ImmutableMap<String, Object> propertiesWithOptimizations =
+          new ImmutableMap.Builder<String, Object>().putAll(properties)
+              .put(
+                  "ksql.named.internal.topics",
+                  "on")
+              .put(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE)
+              .build();
+      final Query testWithOptimizations = new Query(
+          test.getTestPath(), name + " - with_opt", propertiesWithOptimizations,
+          topics, inputs, outputs, statements, expectedException);
+
+      final ImmutableMap<String, Object> propertiesWithoutOptimizations =
+          new ImmutableMap.Builder<String, Object>().putAll(properties)
+              .put(
+                  "ksql.named.internal.topics",
+                  "off")
+              .put(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.NO_OPTIMIZATION)
+              .build();
+      final Query testWithoutOptimizations = new Query(
+          test.getTestPath(), name + " - no_opt", propertiesWithoutOptimizations,
+          topics, inputs, outputs, statements, expectedException);
+
+      return Stream.of(testWithOptimizations, testWithoutOptimizations);
     } catch (final Exception e) {
-      throw new RuntimeException("Failed to build a query in " + test.getTestPath(), e);
+      throw new RuntimeException("Failed to build a testCase in " + test.getTestPath(), e);
     }
   }
 
