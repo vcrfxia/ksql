@@ -144,6 +144,13 @@ public class KsqlConfig extends AbstractConfig implements Cloneable {
               "off",
               "on",
               ConfigDef.Importance.LOW,
+              ""),
+          new CompatibilityBreakingConfigDef(
+              "ksql.windowed.session.key.legacy",
+              ConfigDef.Type.BOOLEAN,
+              true,
+              false,
+              ConfigDef.Importance.LOW,
               "")
   );
 
