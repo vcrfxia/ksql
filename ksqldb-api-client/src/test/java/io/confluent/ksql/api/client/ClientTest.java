@@ -28,6 +28,7 @@ import static org.junit.Assert.assertThrows;
 
 import io.confluent.ksql.api.BaseApiTest;
 import io.confluent.ksql.api.client.util.RowUtil;
+import io.confluent.ksql.api.server.KsqlApiException;
 import io.confluent.ksql.api.server.PushQueryId;
 import io.confluent.ksql.parser.exception.ParseFailedException;
 import io.confluent.ksql.rest.client.KsqlRestClientException;
@@ -226,6 +227,26 @@ public class ClientTest extends BaseApiTest {
   }
 
   @Test
+  public void shouldPropagateErrorWhenStreamingFromStreamQuery() throws Exception {
+    // Given
+    testEndpoints.setRowsBeforePublisherError(DEFAULT_JSON_ROWS.size() - 1);
+
+    // When
+    final StreamedQueryResult streamedQueryResult =
+        javaClient.streamQuery(DEFAULT_PUSH_QUERY, DEFAULT_PUSH_QUERY_REQUEST_PROPERTIES).get();
+
+    // Then
+    assertThat(streamedQueryResult.columnNames(), is(DEFAULT_COLUMN_NAMES));
+    assertThat(streamedQueryResult.columnTypes(), is(DEFAULT_COLUMN_TYPES));
+
+    final Throwable t = shouldReceiveErrorAfterRows(streamedQueryResult, DEFAULT_JSON_ROWS.size() - 1);
+    assertThat(t, instanceOf(KsqlApiException.class));
+    assertThat(t.getMessage(), containsString("Failure in processing"));
+
+    assertThatEventually(streamedQueryResult::isComplete, is(true));
+  }
+
+  @Test
   public void shouldFailPollStreamedQueryResultIfSubscribed() throws Exception {
     // Given
     final StreamedQueryResult streamedQueryResult =
@@ -355,6 +376,30 @@ public class ClientTest extends BaseApiTest {
 
     assertThatEventually(subscriber::isCompleted, equalTo(subscriberCompleted));
     assertThat(subscriber.getError(), is(nullValue()));
+  }
+
+  private static Throwable shouldReceiveErrorAfterRows(
+      final Publisher<Row> publisher,
+      final int numRows
+  ) {
+    TestSubscriber<Row> subscriber = new TestSubscriber<Row>() {
+      @Override
+      public synchronized void onSubscribe(final Subscription sub) {
+        super.onSubscribe(sub);
+        sub.request(numRows);
+      }
+    };
+    publisher.subscribe(subscriber);
+    assertThatEventually(subscriber::getValues, hasSize(numRows));
+
+    for (int i = 0; i < numRows; i++) {
+      verifyRowWithIndex(subscriber.getValues().get(i), i);
+    }
+
+    assertThatEventually(subscriber::getError, is(notNullValue()));
+    assertThat(subscriber.isCompleted(), equalTo(false));
+
+    return subscriber.getError();
   }
 
   private static void verifyRows(final List<Row> rows) {
