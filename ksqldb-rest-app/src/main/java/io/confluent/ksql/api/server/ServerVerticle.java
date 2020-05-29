@@ -99,6 +99,28 @@ public class ServerVerticle extends AbstractVerticle {
     }
   }
 
+  public void restartServer() {
+    final String host = httpServerOptions.getHost();
+    final int port = httpServer.actualPort();
+
+    log.info("Restarting server");
+    httpServer.close(closeAR -> {
+      if (closeAR.succeeded()) {
+        log.info("Server has closed");
+      } else {
+        log.error("Error closing server during restart", closeAR.cause());
+      }
+
+      httpServer.listen(port, host, startAR -> {
+        if (startAR.succeeded()) {
+          log.info("Server has restarted");
+        } else {
+          log.error("Error starting server during restart", startAR.cause());
+        }
+      });
+    });
+  }
+
   int actualPort() {
     return httpServer.actualPort();
   }

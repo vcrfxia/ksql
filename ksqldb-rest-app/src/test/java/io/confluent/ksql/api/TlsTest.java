@@ -15,13 +15,21 @@
 
 package io.confluent.ksql.api;
 
+import static io.confluent.ksql.test.util.AssertEventually.assertThatEventually;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+
 import io.confluent.ksql.rest.server.KsqlRestConfig;
 import io.confluent.ksql.test.util.secure.ServerKeyStore;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpVersion;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.common.config.SslConfigs;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +57,8 @@ public class TlsTest extends ApiTest {
     config.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, trustStorePassword);
     config.put(KsqlRestConfig.VERTICLE_INSTANCES, 4);
 
+    config.put(KsqlRestConfig.SSL_KEYSTORE_RELOAD_CONFIG, true);
+
     return new KsqlRestConfig(config);
   }
 
@@ -63,4 +73,32 @@ public class TlsTest extends ApiTest {
         setDefaultPort(server.getListeners().get(0).getPort());
   }
 
+  @Test
+  public void shouldReloadCert() throws Exception {
+    JsonObject requestBody = new JsonObject().put("sql", DEFAULT_PULL_QUERY);
+    JsonObject properties = new JsonObject().put("prop1", "val1").put("prop2", 23);
+    requestBody.put("properties", properties);
+
+    // execute pull query
+    HttpResponse<Buffer> response = sendRequest("/query-stream", requestBody.toBuffer());
+    assertThat(response.statusCode(), is(200));
+    assertThat(response.statusMessage(), is("OK"));
+
+    // load invalid store
+    ServerKeyStore.loadInvalidStore();
+    Thread.sleep(10000); // TODO: switch to assert eventually
+
+    // should not execute pull query
+    assertThatEventually(() -> {
+      try {
+        // this should fail
+        final HttpResponse<Buffer> response3 = sendRequest("/query-stream", requestBody.toBuffer());
+        System.out.println("response code: " + response3.statusCode());
+        return false;
+      } catch (Exception e) {
+        System.out.println("error: " + e);
+        return true;
+      }
+    }, is(true));
+  }
 }

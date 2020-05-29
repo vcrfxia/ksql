@@ -120,6 +120,16 @@ public class KsqlRestConfig extends AbstractConfig {
           SSL_CLIENT_AUTHENTICATION_REQUIRED
       );
 
+  public static final String SSL_KEYSTORE_RELOAD_CONFIG = "ssl.keystore.reload";
+  protected static final String SSL_KEYSTORE_RELOAD_DOC =
+      "Enable auto reload of ssl keystore.";
+  protected static final boolean SSL_KEYSTORE_RELOAD_DEFAULT = false;
+
+  public static final String SSL_KEYSTORE_WATCH_LOCATION_CONFIG = "ssl.keystore.watch.location";
+  protected static final String SSL_KEYSTORE_WATCH_LOCATION_DOC =
+      "Location to watch for keystore file changes, if different from keystore location.";
+  protected static final String SSL_KEYSTORE_WATCH_LOCATION_DEFAULT = "";
+
   private static final String KSQL_CONFIG_PREFIX = "ksql.";
 
   private static final String COMMAND_CONSUMER_PREFIX =
@@ -338,6 +348,18 @@ public class KsqlRestConfig extends AbstractConfig {
             SSL_KEYSTORE_PASSWORD_DEFAULT,
             Importance.HIGH,
             SslConfigs.SSL_KEYSTORE_PASSWORD_DOC
+        ).define(
+            SSL_KEYSTORE_RELOAD_CONFIG,
+            Type.BOOLEAN,
+            SSL_KEYSTORE_RELOAD_DEFAULT,
+            Importance.LOW,
+            SSL_KEYSTORE_RELOAD_DOC
+        ).define(
+            SSL_KEYSTORE_WATCH_LOCATION_CONFIG,
+            Type.STRING,
+            SSL_KEYSTORE_WATCH_LOCATION_DEFAULT,
+            Importance.LOW,
+            SSL_KEYSTORE_WATCH_LOCATION_DOC
         ).define(
             SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG,
             Type.STRING,

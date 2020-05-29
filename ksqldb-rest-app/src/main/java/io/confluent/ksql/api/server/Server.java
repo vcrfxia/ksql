@@ -35,6 +35,8 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import io.vertx.core.net.JksOptions;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -67,6 +69,7 @@ public class Server {
   private final Map<PushQueryId, PushQueryHolder> queries = new ConcurrentHashMap<>();
   private final Set<HttpConnection> connections = new ConcurrentHashSet<>();
   private final int maxPushQueryCount;
+  private final Set<ServerVerticle> serverVerticles = new HashSet<>();
   private final Set<String> deploymentIds = new HashSet<>();
   private final KsqlSecurityExtension securityExtension;
   private final Optional<AuthenticationPlugin> authenticationPlugin;
@@ -118,6 +121,7 @@ public class Server {
                 listener.getScheme().equalsIgnoreCase("https")),
             this, isInternalListener);
         vertx.deployVerticle(serverVerticle, vcf);
+        serverVerticles.add(serverVerticle);
         final int index = i;
         final CompletableFuture<String> deployFuture = vcf.thenApply(s -> {
           if (index == 0) {
@@ -134,6 +138,8 @@ public class Server {
         deployFutures.add(deployFuture);
       }
     }
+
+    configureTlsCertReload(config, serverVerticles);
 
     final CompletableFuture<Void> allDeployFuture = CompletableFuture.allOf(deployFutures
         .toArray(new CompletableFuture<?>[0]));
@@ -324,4 +330,28 @@ public class Server {
     return listeners;
   }
 
+  private static void configureTlsCertReload(
+      final KsqlRestConfig config,
+      final Set<ServerVerticle> serverVerticles
+  ) {
+    if (config.getBoolean(KsqlRestConfig.SSL_KEYSTORE_RELOAD_CONFIG)) {
+      final Path watchLocation;
+      if (!config.getString(KsqlRestConfig.SSL_KEYSTORE_WATCH_LOCATION_CONFIG).isEmpty()) {
+        watchLocation = Paths.get(
+            config.getString(KsqlRestConfig.SSL_KEYSTORE_WATCH_LOCATION_CONFIG));
+      } else {
+        watchLocation = Paths.get(config.getString(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG));
+      }
+
+      try {
+        FileWatcher.onFileChange(
+            watchLocation,
+            () -> serverVerticles.forEach(ServerVerticle::restartServer)
+        );
+        log.info("Enabled SSL cert auto reload for: " + watchLocation);
+      } catch (java.io.IOException e) {
+        log.error("Can not enabled SSL cert auto reload", e);
+      }
+    }
+  }
 }
