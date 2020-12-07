@@ -42,9 +42,9 @@ public class PlanInfo {
    */
   private final Optional<SourceInfo> activeSource;
 
-  public PlanInfo(final ExecutionStep<?> sourceStep) {
+  public PlanInfo(final ExecutionStep<?> sourceStep, final boolean isTable) {
     this.allSources = new Sources();
-    final SourceInfo sourceInfo = allSources.addSource(sourceStep);
+    final SourceInfo sourceInfo = allSources.addSource(sourceStep, isTable);
     this.activeSource = Optional.of(sourceInfo);
   }
 
@@ -53,17 +53,20 @@ public class PlanInfo {
     this.activeSource = Optional.empty();
   }
 
-  public boolean isRepartitionedInPlan(final ExecutionStep<?> sourceStep) {
+  public boolean isMaybeMaterializedAtSource(final ExecutionStep<?> sourceStep) {
     final SourceInfo sourceInfo = allSources.get(sourceStep);
     if (sourceInfo == null) {
       throw new IllegalStateException("Source not found");
     }
-    return sourceInfo.isRepartitionedInPlan;
+    return sourceInfo.isTableSource && sourceInfo.requiresPreRepartitionMaterialization();
   }
 
-  public PlanInfo setIsRepartitionedInPlan() {
-    activeSource.ifPresent(sourceInfo -> sourceInfo.isRepartitionedInPlan = true);
-    return this;
+  public void setRepartitionTable() {
+    activeSource.ifPresent(SourceInfo::setRepartitionTable);
+  }
+
+  public void setMaterializeTableSource() {
+    activeSource.ifPresent(SourceInfo::setMaterializeTableSource);
   }
 
   public PlanInfo merge(final PlanInfo other) {
@@ -72,10 +75,43 @@ public class PlanInfo {
 
   private static class SourceInfo {
     final ExecutionStep<?> sourceStep;
-    boolean isRepartitionedInPlan;
+    final boolean isTableSource;
+    FirstSeen firstSeen;
 
-    SourceInfo(final ExecutionStep<?> sourceStep) {
+    SourceInfo(final ExecutionStep<?> sourceStep, final boolean isTableSource) {
       this.sourceStep = Objects.requireNonNull(sourceStep);
+      this.isTableSource = isTableSource;
+      this.firstSeen = FirstSeen.NEITHER;
+    }
+
+    boolean requiresPreRepartitionMaterialization() {
+      return firstSeen == FirstSeen.MATERIALIZE_STEP;
+    }
+
+    void setRepartitionTable() {
+      if (!isTableSource) {
+        throw new IllegalStateException("Source step is not a table");
+      }
+
+      if (firstSeen == FirstSeen.NEITHER) {
+        firstSeen = FirstSeen.REPARTITION_STEP;
+      }
+    }
+
+    void setMaterializeTableSource() {
+      if (!isTableSource) {
+        throw new IllegalStateException("Source step is not a table");
+      }
+
+      if (firstSeen == FirstSeen.NEITHER) {
+        firstSeen = FirstSeen.MATERIALIZE_STEP;
+      }
+    }
+
+    private enum FirstSeen {
+      REPARTITION_STEP,
+      MATERIALIZE_STEP,
+      NEITHER;
     }
   }
 
@@ -86,8 +122,8 @@ public class PlanInfo {
   private static class Sources {
     private final HashMap<ExecutionStep<?>, SourceInfo> sources = new HashMap<>();
 
-    SourceInfo addSource(final ExecutionStep<?> sourceStep) {
-      final SourceInfo sourceInfo = new SourceInfo(sourceStep);
+    SourceInfo addSource(final ExecutionStep<?> sourceStep, final boolean isTable) {
+      final SourceInfo sourceInfo = new SourceInfo(sourceStep, isTable);
       sources.put(sourceStep, sourceInfo);
       return sourceInfo;
     }

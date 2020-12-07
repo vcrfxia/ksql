@@ -49,11 +49,11 @@ public class PlanInfoExtractor {
   }
 
   public PlanInfo visitStreamSelectKey(final StreamSelectKeyV1 streamSelectKey) {
-    return visitRepartitionStep(streamSelectKey);
+    return visitSingleSourceStep(streamSelectKey);
   }
 
   public <K> PlanInfo visitStreamSelectKey(final StreamSelectKey<K> streamSelectKey) {
-    return visitRepartitionStep(streamSelectKey);
+    return visitSingleSourceStep(streamSelectKey);
   }
 
   public <K> PlanInfo visitStreamSink(final StreamSink<K> streamSink) {
@@ -61,27 +61,32 @@ public class PlanInfoExtractor {
   }
 
   public PlanInfo visitStreamSource(final StreamSource streamSource) {
-    return visitSourceStep(streamSource);
+    return visitSourceStep(streamSource, false);
   }
 
   public PlanInfo visitWindowedStreamSource(final WindowedStreamSource windowedStreamSource) {
-    return visitSourceStep(windowedStreamSource);
+    return visitSourceStep(windowedStreamSource, false);
   }
 
   public <K> PlanInfo visitStreamStreamJoin(final StreamStreamJoin<K> streamStreamJoin) {
-    return visitJoinStep(streamStreamJoin);
+    final PlanInfo leftInfo = streamStreamJoin.getSources().get(0).extractPlanInfo(this);
+    final PlanInfo rightInfo = streamStreamJoin.getSources().get(1).extractPlanInfo(this);
+    return leftInfo.merge(rightInfo);
   }
 
   public <K> PlanInfo visitStreamTableJoin(final StreamTableJoin<K> streamTableJoin) {
-    return visitJoinStep(streamTableJoin);
+    final PlanInfo leftInfo = streamTableJoin.getSources().get(0).extractPlanInfo(this);
+    final PlanInfo rightInfo = streamTableJoin.getSources().get(1).extractPlanInfo(this);
+    rightInfo.setMaterializeTableSource();
+    return leftInfo.merge(rightInfo);
   }
 
   public PlanInfo visitTableSource(final TableSource tableSource) {
-    return visitSourceStep(tableSource);
+    return visitSourceStep(tableSource, true);
   }
 
   public PlanInfo visitWindowedTableSource(final WindowedTableSource windowedTableSource) {
-    return visitSourceStep(windowedTableSource);
+    return visitSourceStep(windowedTableSource, true);
   }
 
   public PlanInfo visitStreamWindowedAggregate(
@@ -91,7 +96,9 @@ public class PlanInfoExtractor {
   }
 
   public PlanInfo visitTableAggregate(final TableAggregate tableAggregate) {
-    return visitSingleSourceStep(tableAggregate);
+    final PlanInfo sourceInfo = visitSingleSourceStep(tableAggregate);
+    sourceInfo.setMaterializeTableSource();
+    return sourceInfo;
   }
 
   public <K> PlanInfo visitTableFilter(final TableFilter<K> tableFilter) {
@@ -107,7 +114,9 @@ public class PlanInfoExtractor {
   }
 
   public <K> PlanInfo visitTableSelectKey(final TableSelectKey<K> tableSelectKey) {
-    return visitRepartitionStep(tableSelectKey);
+    final PlanInfo sourceInfo = visitSingleSourceStep(tableSelectKey);
+    sourceInfo.setRepartitionTable();
+    return sourceInfo;
   }
 
   public <K> PlanInfo visitTableSink(final TableSink<K> tableSink) {
@@ -119,25 +128,18 @@ public class PlanInfoExtractor {
   }
 
   public <K> PlanInfo visitTableTableJoin(final TableTableJoin<K> tableTableJoin) {
-    return visitJoinStep(tableTableJoin);
-  }
-
-  private PlanInfo visitSourceStep(final ExecutionStep<?> step) {
-    return new PlanInfo(step);
-  }
-
-  private PlanInfo visitRepartitionStep(final ExecutionStep<?> step) {
-    final PlanInfo sourceInfo = (PlanInfo) step.getSources().get(0).extractPlanInfo(this);
-    return sourceInfo.setIsRepartitionedInPlan();
-  }
-
-  private PlanInfo visitJoinStep(final ExecutionStep<?> step) {
-    final PlanInfo leftInfo = (PlanInfo) step.getSources().get(0).extractPlanInfo(this);
-    final PlanInfo rightInfo = (PlanInfo) step.getSources().get(1).extractPlanInfo(this);
+    final PlanInfo leftInfo = tableTableJoin.getSources().get(0).extractPlanInfo(this);
+    final PlanInfo rightInfo = tableTableJoin.getSources().get(1).extractPlanInfo(this);
+    leftInfo.setMaterializeTableSource();
+    rightInfo.setMaterializeTableSource();
     return leftInfo.merge(rightInfo);
   }
 
+  private PlanInfo visitSourceStep(final ExecutionStep<?> step, final boolean isTable) {
+    return new PlanInfo(step, isTable);
+  }
+
   private PlanInfo visitSingleSourceStep(final ExecutionStep<?> step) {
-    return (PlanInfo) step.getSources().get(0).extractPlanInfo(this);
+    return step.getSources().get(0).extractPlanInfo(this);
   }
 }

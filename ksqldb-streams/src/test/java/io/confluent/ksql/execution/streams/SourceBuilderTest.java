@@ -323,11 +323,12 @@ public class SourceBuilderTest {
     assertThat(builtKTable.getTable(), is(kTable));
     final InOrder validator = inOrder(streamsBuilder, kTable);
     validator.verify(streamsBuilder).table(eq(TOPIC_NAME), eq(consumed));
-    validator.verify(kTable).mapValues(any(ValueMapper.class), any(Materialized.class));
     validator.verify(kTable).transformValues(any(ValueTransformerWithKeySupplier.class));
     verify(consumedFactory).create(keySerde, valueSerde);
     verify(consumed).withTimestampExtractor(any());
     verify(consumed).withOffsetResetPolicy(AutoOffsetReset.EARLIEST);
+
+    verify(kTable, never()).mapValues(any(ValueMapper.class), any(Materialized.class));
   }
 
   @Test
@@ -885,7 +886,7 @@ public class SourceBuilderTest {
 
   private static PlanInfo givenDownstreamRepartition(final ExecutionStep<?> sourceStep) {
     final PlanInfo mockPlanInfo = mock(PlanInfo.class);
-    when(mockPlanInfo.isRepartitionedInPlan(sourceStep)).thenReturn(true);
+    when(mockPlanInfo.isMaybeMaterializedAtSource(sourceStep)).thenReturn(false);
     return mockPlanInfo;
   }
 }

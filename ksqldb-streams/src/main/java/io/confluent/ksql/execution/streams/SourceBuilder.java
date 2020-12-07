@@ -337,7 +337,7 @@ public final class SourceBuilder {
           .getStreamsBuilder()
           .table(streamSource.getTopicName(), consumed);
 
-      final boolean forceMaterialization = !planInfo.isRepartitionedInPlan(streamSource);
+      final boolean forceMaterialization = planInfo.isMaybeMaterializedAtSource(streamSource);
       if (forceMaterialization) {
         // add this identity mapValues call to prevent the source-changelog
         // optimization in kafka streams - we don't want this optimization to

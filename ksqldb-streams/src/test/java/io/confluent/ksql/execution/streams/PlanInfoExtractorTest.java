@@ -112,48 +112,50 @@ public class PlanInfoExtractorTest {
   @Test
   public void shouldExtractSource() {
     // When:
-    final PlanInfo planInfo = (PlanInfo) streamSource.extractPlanInfo(planInfoExtractor);
+    final PlanInfo planInfo = streamSource.extractPlanInfo(planInfoExtractor);
 
     // Then:
-    assertThat(planInfo.isRepartitionedInPlan(streamSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(streamSource), is(false));
   }
 
   @Test
   public void shouldExtractSourceWithRepartition() {
     // When:
-    final PlanInfo planInfo = (PlanInfo) streamSourceRepartitioned.extractPlanInfo(planInfoExtractor);
+    final PlanInfo planInfo = streamSourceRepartitioned.extractPlanInfo(planInfoExtractor);
 
     // Then:
-    assertThat(planInfo.isRepartitionedInPlan(streamSource), is(true));
+    assertThat(planInfo.isMaybeMaterializedAtSource(streamSource), is(false));
   }
 
   @Test
   public void shouldExtractMultipleSources() {
     // When:
-    final PlanInfo planInfo = (PlanInfo) streamAndTableJoined.extractPlanInfo(planInfoExtractor);
+    final PlanInfo planInfo = streamAndTableJoined.extractPlanInfo(planInfoExtractor);
 
     // Then:
-    assertThat(planInfo.isRepartitionedInPlan(streamSource), is(false));
-    assertThat(planInfo.isRepartitionedInPlan(tableSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(streamSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(tableSource), is(true));
   }
 
   @Test
   public void shouldExtractRepartitionBeforeJoin() {
     // When:
-    final PlanInfo planInfo = (PlanInfo) streamRepartitionedAndTableJoined.extractPlanInfo(planInfoExtractor);
+    final PlanInfo planInfo = streamRepartitionedAndTableJoined.extractPlanInfo(planInfoExtractor);
 
     // Then:
-    assertThat(planInfo.isRepartitionedInPlan(streamSource), is(true));
-    assertThat(planInfo.isRepartitionedInPlan(tableSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(streamSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(tableSource), is(true));
   }
 
   @Test
   public void shouldExtractRepartitionAfterJoin() {
     // When:
-    final PlanInfo planInfo = (PlanInfo) streamAndTableJoinedRepartitioned.extractPlanInfo(planInfoExtractor);
+    final PlanInfo planInfo = streamAndTableJoinedRepartitioned.extractPlanInfo(planInfoExtractor);
 
     // Then:
-    assertThat(planInfo.isRepartitionedInPlan(streamSource), is(false));
-    assertThat(planInfo.isRepartitionedInPlan(tableSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(streamSource), is(false));
+    assertThat(planInfo.isMaybeMaterializedAtSource(tableSource), is(true));
   }
+
+  // TODO: improve these tests
 }
